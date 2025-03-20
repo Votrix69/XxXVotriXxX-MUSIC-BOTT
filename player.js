@@ -1,5 +1,8 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const { Player } = require('riffy-player');
+const { DisTube } = require('distube');
+const { SpotifyPlugin } = require('@distube/spotify');
+const { SoundCloudPlugin } = require('@distube/soundcloud');
+const { YtDlpPlugin } = require('@distube/yt-dlp');
 require('dotenv').config();
 
 const client = new Client({
@@ -11,78 +14,66 @@ const client = new Client({
     ]
 });
 
-const player = new Player(client);
-
-client.once('ready', () => {
-    console.log(`✅ Logged in as ${client.user.tag}`);
+// Inicializace DisTube
+const distube = new DisTube(client, {
+    leaveOnStop: false,
+    emitNewSongOnly: true,
+    emitAddSongWhenCreatingQueue: false,
+    plugins: [
+        new SpotifyPlugin(),
+        new SoundCloudPlugin(),
+        new YtDlpPlugin()
+    ]
 });
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
-    const args = message.content.split(' ');
-    const command = args.shift().toLowerCase();
+// Eventy pro hudbu
+distube
+    .on('playSong', (queue, song) => {
+        queue.textChannel.send(`▶️ Hraje: **${song.name}** - ${song.formattedDuration}`);
+    })
+    .on('addSong', (queue, song) => {
+        queue.textChannel.send(`✅ Přidána do fronty: **${song.name}**`);
+    })
+    .on('error', (channel, error) => {
+        console.error(error);
+        channel.send('❌ Nastala chyba při přehrávání!');
+    });
 
-    if (command === '!play') {
-        if (!args.length) return message.reply('❌ Musíš zadat URL nebo název skladby.');
-        if (!message.member.voice.channel) return message.reply('❌ Musíš být ve voice kanále.');
-        
-        const query = args.join(' ');
-        const queue = player.createQueue(message.guild.id, {
-            metadata: { channel: message.channel }
-        });
-        
-        try {
-            if (!queue.connection) await queue.connect(message.member.voice.channel);
-        } catch {
-            queue.destroy();
-            return message.reply('❌ Nepodařilo se připojit k voice kanálu.');
-        }
-        
-        const track = await player.search(query, {
-            requestedBy: message.author
-        }).then(x => x.tracks[0]);
-        
-        if (!track) return message.reply('❌ Nenalezena žádná skladba.');
-        
-        queue.play(track);
-        message.reply(`🎶 Přehrávám: **${track.title}**`);
+// Slash příkazy
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isCommand()) return;
+
+    const { commandName, options } = interaction;
+    const voiceChannel = interaction.member.voice.channel;
+
+    if (!voiceChannel) {
+        return interaction.reply({ content: '❌ Musíš být v hlasovém kanálu!', ephemeral: true });
     }
-    
-    else if (command === '!skip') {
-        const queue = player.getQueue(message.guild.id);
-        if (!queue || !queue.playing) return message.reply('❌ Nic se právě nehraje.');
-        queue.skip();
-        message.reply('⏭ Přeskočena aktuální skladba.');
-    }
-    
-    else if (command === '!stop') {
-        const queue = player.getQueue(message.guild.id);
-        if (!queue) return message.reply('❌ Nic se právě nehraje.');
-        queue.destroy();
-        message.reply('⏹ Stopnul jsem přehrávání.');
-    }
-    
-    else if (command === '!pause') {
-        const queue = player.getQueue(message.guild.id);
-        if (!queue || !queue.playing) return message.reply('❌ Nic se právě nehraje.');
-        queue.setPaused(true);
-        message.reply('⏸ Přehrávání bylo pozastaveno.');
-    }
-    
-    else if (command === '!resume') {
-        const queue = player.getQueue(message.guild.id);
-        if (!queue || !queue.playing) return message.reply('❌ Nic není pozastaveno.');
-        queue.setPaused(false);
-        message.reply('▶ Přehrávání bylo obnoveno.');
-    }
-    
-    else if (command === '!queue') {
-        const queue = player.getQueue(message.guild.id);
-        if (!queue || !queue.playing) return message.reply('❌ Žádná skladba ve frontě.');
-        message.reply(`📜 Fronta:
-${queue.tracks.map((track, i) => `${i + 1}. ${track.title}`).join('\n')}`);
+
+    switch (commandName) {
+        case 'play':
+            const query = options.getString('song');
+            await distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
+            interaction.reply({ content: `🔍 Hledám: **${query}**`, ephemeral: true });
+            break;
+
+        case 'stop':
+            distube.stop(interaction.guild);
+            interaction.reply({ content: '⏹️ Hudba zastavena.', ephemeral: true });
+            break;
+
+        case 'skip':
+            distube.skip(interaction.guild);
+            interaction.reply({ content: '⏭️ Přeskakuji skladbu.', ephemeral: true });
+            break;
+
+        case 'queue':
+            const queue = distube.getQueue(interaction.guild);
+            if (!queue) return interaction.reply('🎵 Fronta je prázdná!');
+            interaction.reply(`🎶 Fronta:\n${queue.songs.map((song, id) => `${id + 1}. ${song.name}`).join('\n')}`);
+            break;
     }
 });
 
+// Přihlášení bota
 client.login(process.env.TOKEN);
-
