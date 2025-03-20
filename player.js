@@ -1,79 +1,50 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const { DisTube } = require('distube');
-const { SpotifyPlugin } = require('@distube/spotify');
-const { SoundCloudPlugin } = require('@distube/soundcloud');
-const { YtDlpPlugin } = require('@distube/yt-dlp');
-require('dotenv').config();
+const { Client, Intents } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, AudioPlayer } = require('@discordjs/voice');
+const ytdl = require('ytdl-core');
+const { prefix, token } = require('./config.json');  // Zde můžeš nastavit prefix a token pro bota
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_VOICE_STATES] });
+
+client.once('ready', () => {
+    console.log('Bot je online!');
 });
 
-// Inicializace DisTube
-const distube = new DisTube(client, {
-    leaveOnStop: false,
-    emitNewSongOnly: true,
-    emitAddSongWhenCreatingQueue: false,
-    plugins: [
-        new SpotifyPlugin(),
-        new SoundCloudPlugin(),
-        new YtDlpPlugin()
-    ]
-});
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
 
-// Eventy pro hudbu
-distube
-    .on('playSong', (queue, song) => {
-        queue.textChannel.send(`▶️ Hraje: **${song.name}** - ${song.formattedDuration}`);
-    })
-    .on('addSong', (queue, song) => {
-        queue.textChannel.send(`✅ Přidána do fronty: **${song.name}**`);
-    })
-    .on('error', (channel, error) => {
-        console.error(error);
-        channel.send('❌ Nastala chyba při přehrávání!');
-    });
+    if (message.content.startsWith(`${prefix}play`)) {
+        const voiceChannel = message.member.voice.channel;
+        if (!voiceChannel) return message.reply('Musíš být ve voice channelu!');
+        
+        const args = message.content.split(' ').slice(1);
+        const songUrl = args.join(' ');
 
-// Slash příkazy
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
+        if (!songUrl) return message.reply('Dej mi prosím odkaz na video na YouTube!');
 
-    const { commandName, options } = interaction;
-    const voiceChannel = interaction.member.voice.channel;
+        try {
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: message.guild.id,
+                adapterCreator: message.guild.voiceAdapterCreator,
+            });
 
-    if (!voiceChannel) {
-        return interaction.reply({ content: '❌ Musíš být v hlasovém kanálu!', ephemeral: true });
-    }
+            const stream = ytdl(songUrl, { filter: 'audioonly' });
+            const resource = createAudioResource(stream);
+            const player = createAudioPlayer();
 
-    switch (commandName) {
-        case 'play':
-            const query = options.getString('song');
-            await distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
-            interaction.reply({ content: `🔍 Hledám: **${query}**`, ephemeral: true });
-            break;
+            player.play(resource);
+            connection.subscribe(player);
 
-        case 'stop':
-            distube.stop(interaction.guild);
-            interaction.reply({ content: '⏹️ Hudba zastavena.', ephemeral: true });
-            break;
+            player.on(AudioPlayerStatus.Idle, () => {
+                connection.destroy();
+            });
 
-        case 'skip':
-            distube.skip(interaction.guild);
-            interaction.reply({ content: '⏭️ Přeskakuji skladbu.', ephemeral: true });
-            break;
-
-        case 'queue':
-            const queue = distube.getQueue(interaction.guild);
-            if (!queue) return interaction.reply('🎵 Fronta je prázdná!');
-            interaction.reply(`🎶 Fronta:\n${queue.songs.map((song, id) => `${id + 1}. ${song.name}`).join('\n')}`);
-            break;
+            message.reply(`Přehrávám hudbu z: ${songUrl}`);
+        } catch (error) {
+            console.error(error);
+            message.reply('Nastala chyba při přehrávání!');
+        }
     }
 });
 
-// Přihlášení bota
-client.login(process.env.TOKEN);
+client.login(token);
