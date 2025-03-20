@@ -21,6 +21,9 @@
     "@distube/soundcloud": "^1.0.0",
     "@distube/yt-dlp": "^1.0.4"
   },
+  "devDependencies": {
+    "husky": "^8.0.0"
+  },
   "scripts": {
     "start": "node index.js"
   },
