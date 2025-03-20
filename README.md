@@ -1,30 +1,14 @@
-# PrimeMusic-Lavalink
-LAVALINK BOT MADE BY SHIVA.
+# Music Bot for Discord
 
-Fork the Repositry and add your bot token. Must turn on intents and run the code.
-Use /play to start playing the songs.
+This is a simple music bot that plays music from YouTube in voice channels.
 
-# ENV
-TOKEN
- 
-# Config.js
-Add mongoUri
+## Setup
 
-# Supports
-- YouTube
-- SoundCloud
-- Spotify
+1. Create a bot on [Discord Developer Portal](https://discord.com/developers/applications).
+2. Copy the bot token and add it to the `config.json` file.
+3. Install dependencies: `npm install`.
+4. Start the bot: `npm start`.
 
-Links / Text / Playlists
- 
-English (en),
-Spanish (es),
-French (fr),
-German (de),
-Chinese (Simplified) (cn),
-Japanese (ja),
-Korean (ko),
-Russian (ru),
-Portuguese (pt),
-Arabic (ar),
-Vietnamese (vi)
+## Commands
+
+- `!play <YouTube link>`: Plays music from YouTube.
