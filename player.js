@@ -101,11 +101,10 @@ function initializePlayer(client) {
                 name: '', 
                 iconURL: musicIcons.playerIcon,
                 url: config.SupportServer
-            })
-            .setFooter({ text: "Developed by Votrix" })
-
-            .setTimestamp()
-            .setDescription(  
+             })
+        .setFooter({ text: "Developed by Votrix" })
+        .setTimestamp()
+        .setDescription(
                 `- **Title:** [${track.info.title}](${track.info.uri})\n` +
                 `- **Author:** ${track.info.author || 'Unknown Artist'}\n` +
                 `- **Length:** ${formatDuration(track.info.length)}\n` +
